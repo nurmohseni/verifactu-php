@@ -550,7 +550,7 @@ class InvoiceSubmission extends InvoiceRecord
                 // Verifica el formato YYYY-MM-DD (ISO 8601)
                 return (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value->issueDate))
                     ? true
-                    : 'La fecha de expedición debe tener el formato YYYY-MM-DD.';
+                    : 'The issue date must be in YYYY-MM-DD format.';
             }],
         ]);
     }

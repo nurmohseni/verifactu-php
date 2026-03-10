@@ -528,6 +528,7 @@ class InvoiceSerializer
     /**
      * Converts a date string from YYYY-MM-DD to DD-MM-YYYY format as required by the AEAT schema.
      * If the value is already in DD-MM-YYYY format, it is returned unchanged.
+     * Any other format is returned as-is; validation of the format should be done prior to calling this method.
      *
      * @param string $date Date string in YYYY-MM-DD or DD-MM-YYYY format
      * @return string Date string in DD-MM-YYYY format
@@ -539,6 +540,7 @@ class InvoiceSerializer
             return "{$day}-{$month}-{$year}";
         }
 
+        // Already in DD-MM-YYYY format or unrecognized — return unchanged
         return $date;
     }
 
