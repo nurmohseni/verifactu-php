@@ -26,6 +26,7 @@ class InvoiceId extends Model
 
     /**
      * Issue date (FechaExpedicionFactura), format YYYY-MM-DD.
+     * The serializer will automatically convert this to DD-MM-YYYY as required by the AEAT schema.
      * @var string
      */
     public $issueDate;
@@ -39,8 +40,8 @@ class InvoiceId extends Model
             [['issuerNif', 'seriesNumber', 'issueDate'], 'required'],
             [['issuerNif', 'seriesNumber', 'issueDate'], 'string'],
             ['issueDate', fn($value): bool|string =>
-                // Checks for format DD-MM-YYYY (simple regex)
-                (preg_match('/^\\d{2}-\\d{2}-\\d{4}$/', (string) $value)) ? true : 'Must be a valid date (YYYY-MM-DD).'],
+                // Checks for format YYYY-MM-DD (ISO 8601)
+                (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $value)) ? true : 'Must be a valid date (YYYY-MM-DD).'],
         ];
     }
 

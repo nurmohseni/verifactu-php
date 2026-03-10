@@ -374,7 +374,7 @@ class InvoiceSerializerTest extends TestCase
         $invoiceId = new InvoiceId();
         $invoiceId->issuerNif = '12345678Z';
         $invoiceId->seriesNumber = 'TEST-NL-001';
-        $invoiceId->issueDate = '01-01-2023';
+        $invoiceId->issueDate = '2023-01-01';
         $invoiceNL->setInvoiceId($invoiceId);
         $invoiceNL->issuerName = 'Test Company';
         $invoiceNL->invoiceType = InvoiceType::STANDARD;
@@ -413,7 +413,7 @@ class InvoiceSerializerTest extends TestCase
         $invoiceId = new InvoiceId();
         $invoiceId->issuerNif = '12345678Z';
         $invoiceId->seriesNumber = 'TEST001';
-        $invoiceId->issueDate = '01-01-2023';
+        $invoiceId->issueDate = '2023-01-01';
         $invoice->setInvoiceId($invoiceId);
 
         $invoice->issuerName = 'Test Company';
@@ -452,7 +452,7 @@ class InvoiceSerializerTest extends TestCase
         $invoiceId = new InvoiceId();
         $invoiceId->issuerNif = '12345678Z';
         $invoiceId->seriesNumber = 'TEST001';
-        $invoiceId->issueDate = '01-01-2023';
+        $invoiceId->issueDate = '2023-01-01';
         $cancellation->setInvoiceId($invoiceId);
 
         // Set hash-related properties
@@ -482,7 +482,7 @@ class InvoiceSerializerTest extends TestCase
 
         // Set optional properties
         $query->seriesNumber = 'TEST001';
-        $query->issueDate = '01-01-2023';
+        $query->issueDate = '2023-01-01';
         $query->externalRef = 'TEST-REF-001';
 
         // Set counterparty

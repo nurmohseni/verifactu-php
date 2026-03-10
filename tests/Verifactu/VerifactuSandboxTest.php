@@ -119,7 +119,7 @@ class VerifactuSandboxTest extends TestCase
         $invoiceId = new InvoiceId();
         $invoiceId->issuerNif = $this->issuerNif; // was hardcoded before
         $invoiceId->seriesNumber = 'TEST' . date('YmdHis');
-        $invoiceId->issueDate = date('d-m-Y');
+        $invoiceId->issueDate = date('Y-m-d');
         $invoice->setInvoiceId($invoiceId);
 
         // Set basic invoice data
@@ -168,7 +168,7 @@ class VerifactuSandboxTest extends TestCase
         $invoice->recordTimestamp = date('Y-m-d\TH:i:sP');
 
         // Optional fields
-        $invoice->operationDate = date('d-m-Y');
+        $invoice->operationDate = date('Y-m-d');
         // Change to externalReference if you prefer not to depend on the alias:
         // $invoice->externalReference = 'TEST-' . date('YmdHis');
         $invoice->externalRef = 'TEST-' . date('YmdHis');
