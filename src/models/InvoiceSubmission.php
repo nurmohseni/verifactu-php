@@ -534,8 +534,8 @@ class InvoiceSubmission extends InvoiceRecord
                     return true;
                 }
 
-                // Checks for format DD-MM-YYYY (simple regex)
-                return (preg_match('/^\\d{2}-\\d{2}-\\d{4}$/', $value)) ? true : 'Must be a valid date (YYYY-MM-DD).';
+                // Checks for format YYYY-MM-DD (ISO 8601)
+                return (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) ? true : 'Must be a valid date (YYYY-MM-DD).';
             }],
             // New rule to validate the issue date format
             ['invoiceId', function ($value): bool|string {
@@ -547,10 +547,10 @@ class InvoiceSubmission extends InvoiceRecord
                     return true;
                 }
 
-                // Verifica el formato DD-MM-YYYY
-                return (preg_match('/^\\d{2,2}-\\d{2,2}-\\d{4,4}$/', $value->issueDate))
+                // Verifica el formato YYYY-MM-DD (ISO 8601)
+                return (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value->issueDate))
                     ? true
-                    : 'La fecha de expedición debe tener el formato DD-MM-YYYY.';
+                    : 'The issue date must be in YYYY-MM-DD format.';
             }],
         ]);
     }

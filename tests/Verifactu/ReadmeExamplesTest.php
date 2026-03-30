@@ -36,7 +36,7 @@ class ReadmeExamplesTest extends TestCase
         $invoiceId = new InvoiceId();
         $invoiceId->issuerNif = 'B12345678';
         $invoiceId->seriesNumber = 'FA2024/001';
-        $invoiceId->issueDate = '01-07-2024';
+        $invoiceId->issueDate = '2024-07-01';
         $invoice->setInvoiceId($invoiceId);
 
         // Set basic invoice data
@@ -83,7 +83,7 @@ class ReadmeExamplesTest extends TestCase
         $invoice->hash = '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'; // Calculated hash
 
         // Optional fields
-        $invoice->operationDate = '01-07-2024'; // Operation date
+        $invoice->operationDate = '2024-07-01'; // Operation date
         $invoice->externalRef = 'REF123'; // External reference
         $invoice->simplifiedInvoice = YesNoType::NO; // Is not a simplified invoice
         $invoice->invoiceWithoutRecipient = YesNoType::NO; // Has identified recipient
@@ -113,7 +113,7 @@ class ReadmeExamplesTest extends TestCase
         $this->assertInstanceOf(InvoiceId::class, $invoice->getInvoiceId());
         $this->assertEquals('B12345678', $invoice->getInvoiceId()->issuerNif);
         $this->assertEquals('FA2024/001', $invoice->getInvoiceId()->seriesNumber);
-        $this->assertEquals('01-07-2024', $invoice->getInvoiceId()->issueDate);
+        $this->assertEquals('2024-07-01', $invoice->getInvoiceId()->issueDate);
         $this->assertEquals('Empresa Ejemplo SL', $invoice->issuerName);
         $this->assertEquals(InvoiceType::STANDARD, $invoice->invoiceType);
         $this->assertEquals('Venta de productos', $invoice->operationDescription);
@@ -133,7 +133,7 @@ class ReadmeExamplesTest extends TestCase
         $invoiceId = new InvoiceId();
         $invoiceId->issuerNif = 'B12345678';
         $invoiceId->seriesNumber = 'FA2024/001';
-        $invoiceId->issueDate = '01-07-2024';
+        $invoiceId->issueDate = '2024-07-01';
         $cancellation->setInvoiceId($invoiceId);
 
         // Set chaining data (using object-oriented approach)
@@ -142,7 +142,7 @@ class ReadmeExamplesTest extends TestCase
         $chaining->setPreviousInvoice([
             'seriesNumber' => 'FA2024/000',
             'issuerNif' => 'B12345678',
-            'issueDate' => '30-06-2024',
+            'issueDate' => '2024-06-30',
             'hash' => '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
         ]);
         $cancellation->setChaining($chaining);
@@ -193,7 +193,7 @@ class ReadmeExamplesTest extends TestCase
         $this->assertInstanceOf(InvoiceId::class, $cancellation->getInvoiceId());
         $this->assertEquals('B12345678', $cancellation->getInvoiceId()->issuerNif);
         $this->assertEquals('FA2024/001', $cancellation->getInvoiceId()->seriesNumber);
-        $this->assertEquals('01-07-2024', $cancellation->getInvoiceId()->issueDate);
+        $this->assertEquals('2024-07-01', $cancellation->getInvoiceId()->issueDate);
         $this->assertEquals(YesNoType::NO, $cancellation->noPreviousRecord);
         $this->assertEquals(YesNoType::NO, $cancellation->previousRejection);
         $this->assertEquals(GeneratorType::ISSUER, $cancellation->generator);
