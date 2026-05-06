@@ -254,27 +254,19 @@ class InvoiceSerializerTest extends TestCase
     }
 
     /**
-     * Test that a query with counterparty NIF but no name passes XSD validation.
-     * NombreRazon is REQUIRED by ContraparteConsultaType even when name is empty.
+     * Test that a query with counterparty NIF but no name omits Contraparte entirely.
+     * AEAT rejects empty NombreRazon (error 1100), so Contraparte requires a non-empty name.
      */
-    public function testValidateQueryXmlCounterpartyWithoutName(): void
+    public function testQueryXmlOmitsContraparteWithoutName(): void
     {
         $query = $this->createBasicInvoiceQuery();
         $query->setCounterparty('87654321X'); // No name provided
 
-        try {
-            $dom = InvoiceSerializer::toQueryXml($query, true);
-            $this->assertTrue(true);
+        $dom = InvoiceSerializer::toQueryXml($query, true);
 
-            // Verify NombreRazon is present (even if empty)
-            $contraparte = $dom->getElementsByTagNameNS(InvoiceSerializer::QUERY_NAMESPACE, 'Contraparte');
-            $this->assertEquals(1, $contraparte->length);
-            $nombreRazon = $contraparte->item(0)->getElementsByTagNameNS(InvoiceSerializer::SF_NAMESPACE, 'NombreRazon');
-            $this->assertEquals(1, $nombreRazon->length);
-            $this->assertEquals('', $nombreRazon->item(0)->textContent);
-        } catch (\Exception $e) {
-            $this->fail('XML validation failed for counterparty without name: ' . $e->getMessage());
-        }
+        // Contraparte should NOT be present when name is empty
+        $contraparte = $dom->getElementsByTagNameNS(InvoiceSerializer::QUERY_NAMESPACE, 'Contraparte');
+        $this->assertEquals(0, $contraparte->length, 'Contraparte should be omitted when counterparty name is empty');
     }
 
     /**

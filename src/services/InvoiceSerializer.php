@@ -478,17 +478,17 @@ class InvoiceSerializer
             $filtro->appendChild($doc->createElementNS(self::QUERY_NAMESPACE, 'sf:NumSerieFactura', (string) $query->seriesNumber));
         }
 
-        // Contraparte (Consulta ns) with children from SF ns
+        // Contraparte (Consulta ns) — only included when counterparty name is provided.
+        // NombreRazon is REQUIRED by the XSD and AEAT rejects empty values (error 1100).
         $counterparty = $query->getCounterparty();
-        if (!empty($counterparty) && is_array($counterparty)) {
+        if (!empty($counterparty['name']) && is_array($counterparty)) {
             $contraparte = $doc->createElementNS(self::QUERY_NAMESPACE, 'sf:Contraparte');
-            // Order matters: NombreRazon first (REQUIRED by schema), then identification (NIF/IDOtro)
-            $contraparte->appendChild($doc->createElementNS(self::SF_NAMESPACE, 'sf:NombreRazon', (string) ($counterparty['name'] ?? '')));
+            // Order matters: NombreRazon first, then identification (NIF/IDOtro)
+            $contraparte->appendChild($doc->createElementNS(self::SF_NAMESPACE, 'sf:NombreRazon', (string) $counterparty['name']));
             if (!empty($counterparty['nif'])) {
                 $contraparte->appendChild($doc->createElementNS(self::SF_NAMESPACE, 'sf:NIF', (string) $counterparty['nif']));
             }
             if (!empty($counterparty['otherId'])) {
-                // Build IDOtro block in SF ns if provided as associative array
                 if (is_array($counterparty['otherId'])) {
                     $idOtro = $doc->createElementNS(self::SF_NAMESPACE, 'sf:IDOtro');
                     if (!empty($counterparty['otherId']['countryCode'])) {
