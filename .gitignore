@@ -11,3 +11,4 @@ var
 *.bak
 .env
 .env.local
+.atl

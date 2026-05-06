@@ -11,6 +11,7 @@ use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
 use eseperio\verifactu\models\InvoiceRecord;
+use eseperio\verifactu\models\InvoiceSubmission;
 
 /**
  * Service responsible for generating QR codes for invoices according to the AEAT Verifactu specification.
@@ -118,14 +119,18 @@ class QrGeneratorService
         $invoiceId = $record->getInvoiceId();
         $nif = $invoiceId->issuerNif;
         $series = $invoiceId->seriesNumber;
-        $date = $invoiceId->issueDate;
+        $date = InvoiceSerializer::formatDate((string) $invoiceId->issueDate);
         $hash = $record->hash;
 
         $params = [
             'nif' => $nif,
-            'num' => $series,
+            'numserie' => $series,
             'fecha' => $date,
         ];
+
+        if ($record instanceof InvoiceSubmission) {
+            $params['importe'] = number_format((float) $record->totalAmount, 2, '.', '');
+        }
 
         if (!empty($hash)) {
             $params['huella'] = $hash;

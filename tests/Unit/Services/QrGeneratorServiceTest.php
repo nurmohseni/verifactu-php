@@ -6,8 +6,10 @@ namespace eseperio\verifactu\tests\Unit;
 
 use BaconQrCode\Writer;
 use PHPUnit\Framework\MockObject\MockObject;
+use eseperio\verifactu\models\InvoiceCancellation;
 use eseperio\verifactu\models\InvoiceId;
 use eseperio\verifactu\models\InvoiceRecord;
+use eseperio\verifactu\models\InvoiceSubmission;
 use eseperio\verifactu\services\QrGeneratorService;
 use PHPUnit\Framework\TestCase;
 
@@ -18,11 +20,11 @@ class QrGeneratorServiceTest extends TestCase
      */
     public function testBuildQrContent(): void
     {
-        // Create a mock InvoiceRecord
-        $mockInvoiceRecord = $this->getMockBuilder(InvoiceRecord::class)
+        // Create a mock InvoiceSubmission (has totalAmount)
+        $mockInvoiceRecord = $this->getMockBuilder(InvoiceSubmission::class)
             ->disableOriginalConstructor()
             ->onlyMethods(['getInvoiceId'])
-            ->getMockForAbstractClass();
+            ->getMock();
 
         // Create an InvoiceId
         $invoiceId = new InvoiceId();
@@ -30,9 +32,10 @@ class QrGeneratorServiceTest extends TestCase
         $invoiceId->seriesNumber = 'FACT-001';
         $invoiceId->issueDate = '2023-01-01';
 
-        // Set up the mock InvoiceRecord
+        // Set up the mock InvoiceSubmission
         $mockInvoiceRecord->method('getInvoiceId')->willReturn($invoiceId);
         $mockInvoiceRecord->hash = 'abcdef1234567890';
+        $mockInvoiceRecord->totalAmount = 121.00;
 
         // Use reflection to access the protected method
         $reflectionClass = new \ReflectionClass(QrGeneratorService::class);
@@ -46,8 +49,9 @@ class QrGeneratorServiceTest extends TestCase
         // Verify the result
         $expectedParams = http_build_query([
             'nif' => 'B12345678',
-            'num' => 'FACT-001',
-            'fecha' => '2023-01-01',
+            'numserie' => 'FACT-001',
+            'fecha' => '01-01-2023',
+            'importe' => '121.00',
             'huella' => 'abcdef1234567890',
         ]);
         $expected = $baseUrl . '?' . $expectedParams;
@@ -61,10 +65,11 @@ class QrGeneratorServiceTest extends TestCase
      */
     public function testBuildQrContentWithoutHash(): void
     {
-        $mockInvoiceRecord = $this->getMockBuilder(InvoiceRecord::class)
+        // InvoiceCancellation has no totalAmount, so importe must not appear
+        $mockInvoiceRecord = $this->getMockBuilder(InvoiceCancellation::class)
             ->disableOriginalConstructor()
             ->onlyMethods(['getInvoiceId'])
-            ->getMockForAbstractClass();
+            ->getMock();
 
         $invoiceId = new InvoiceId();
         $invoiceId->issuerNif = 'B12345678';
@@ -83,11 +88,77 @@ class QrGeneratorServiceTest extends TestCase
 
         // 'huella' must not appear in URL when hash is null
         $this->assertStringNotContainsString('huella', $result);
+        // 'importe' must not appear for cancellations
+        $this->assertStringNotContainsString('importe', $result);
 
         $expectedParams = http_build_query([
             'nif' => 'B12345678',
-            'num' => 'FACT-001',
-            'fecha' => '2023-01-01',
+            'numserie' => 'FACT-001',
+            'fecha' => '01-01-2023',
+        ]);
+        $this->assertEquals($baseUrl . '?' . $expectedParams, $result);
+    }
+
+    /**
+     * Test that buildQrContent includes 'importe' for InvoiceSubmission.
+     */
+    public function testBuildQrContentIncludesImporteForSubmission(): void
+    {
+        $mockInvoiceRecord = $this->getMockBuilder(InvoiceSubmission::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['getInvoiceId'])
+            ->getMock();
+
+        $invoiceId = new InvoiceId();
+        $invoiceId->issuerNif = 'B12345678';
+        $invoiceId->seriesNumber = 'FACT-001';
+        $invoiceId->issueDate = '2023-01-01';
+
+        $mockInvoiceRecord->method('getInvoiceId')->willReturn($invoiceId);
+        $mockInvoiceRecord->hash = 'abcdef1234567890';
+        $mockInvoiceRecord->totalAmount = 121.00;
+
+        $reflectionClass = new \ReflectionClass(QrGeneratorService::class);
+        $method = $reflectionClass->getMethod('buildQrContent');
+        $method->setAccessible(true);
+
+        $baseUrl = 'https://example.com/verify';
+        $result = $method->invoke(null, $mockInvoiceRecord, $baseUrl);
+
+        $this->assertStringContainsString('importe=121.00', $result);
+    }
+
+    /**
+     * Test that buildQrContent passes through dates already in d-m-Y format.
+     */
+    public function testBuildQrContentDateAlreadyFormatted(): void
+    {
+        $mockInvoiceRecord = $this->getMockBuilder(InvoiceSubmission::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['getInvoiceId'])
+            ->getMock();
+
+        $invoiceId = new InvoiceId();
+        $invoiceId->issuerNif = 'B12345678';
+        $invoiceId->seriesNumber = 'FACT-001';
+        $invoiceId->issueDate = '25-12-2024';
+
+        $mockInvoiceRecord->method('getInvoiceId')->willReturn($invoiceId);
+        $mockInvoiceRecord->hash = null;
+        $mockInvoiceRecord->totalAmount = 50.00;
+
+        $reflectionClass = new \ReflectionClass(QrGeneratorService::class);
+        $method = $reflectionClass->getMethod('buildQrContent');
+        $method->setAccessible(true);
+
+        $baseUrl = 'https://example.com/verify';
+        $result = $method->invoke(null, $mockInvoiceRecord, $baseUrl);
+
+        $expectedParams = http_build_query([
+            'nif' => 'B12345678',
+            'numserie' => 'FACT-001',
+            'fecha' => '25-12-2024',
+            'importe' => '50.00',
         ]);
         $this->assertEquals($baseUrl . '?' . $expectedParams, $result);
     }
