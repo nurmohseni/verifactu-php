@@ -448,7 +448,10 @@ class InvoiceSerializer
         $root = $doc->createElementNS(self::QUERY_NAMESPACE, 'sf:ConsultaFactuSistemaFacturacion');
         $doc->appendChild($root);
 
-        // Cabecera (Consulta namespace) with required IDVersion (child in SF namespace)
+        // Wrapper elements (Cabecera, FiltroConsulta, etc.) MUST use QUERY_NAMESPACE (ConsultaLR.xsd)
+        // per elementFormDefault='qualified' in the schema, even though the AEAT documentation
+        // examples show sum1: (SuministroInformacion) prefix. Changing to SF_NAMESPACE breaks
+        // local XSD validation.
         $cabecera = $doc->createElementNS(self::QUERY_NAMESPACE, 'sf:Cabecera');
         $cabecera->appendChild($doc->createElementNS(self::SF_NAMESPACE, 'sf:IDVersion', '1.0'));
         $root->appendChild($cabecera);
@@ -479,10 +482,8 @@ class InvoiceSerializer
         $counterparty = $query->getCounterparty();
         if (!empty($counterparty) && is_array($counterparty)) {
             $contraparte = $doc->createElementNS(self::QUERY_NAMESPACE, 'sf:Contraparte');
-            // Order matters: NombreRazon first, then identification (NIF/IDOtro)
-            if (!empty($counterparty['name'])) {
-                $contraparte->appendChild($doc->createElementNS(self::SF_NAMESPACE, 'sf:NombreRazon', (string) $counterparty['name']));
-            }
+            // Order matters: NombreRazon first (REQUIRED by schema), then identification (NIF/IDOtro)
+            $contraparte->appendChild($doc->createElementNS(self::SF_NAMESPACE, 'sf:NombreRazon', (string) ($counterparty['name'] ?? '')));
             if (!empty($counterparty['nif'])) {
                 $contraparte->appendChild($doc->createElementNS(self::SF_NAMESPACE, 'sf:NIF', (string) $counterparty['nif']));
             }

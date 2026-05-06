@@ -254,6 +254,30 @@ class InvoiceSerializerTest extends TestCase
     }
 
     /**
+     * Test that a query with counterparty NIF but no name passes XSD validation.
+     * NombreRazon is REQUIRED by ContraparteConsultaType even when name is empty.
+     */
+    public function testValidateQueryXmlCounterpartyWithoutName(): void
+    {
+        $query = $this->createBasicInvoiceQuery();
+        $query->setCounterparty('87654321X'); // No name provided
+
+        try {
+            $dom = InvoiceSerializer::toQueryXml($query, true);
+            $this->assertTrue(true);
+
+            // Verify NombreRazon is present (even if empty)
+            $contraparte = $dom->getElementsByTagNameNS(InvoiceSerializer::QUERY_NAMESPACE, 'Contraparte');
+            $this->assertEquals(1, $contraparte->length);
+            $nombreRazon = $contraparte->item(0)->getElementsByTagNameNS(InvoiceSerializer::SF_NAMESPACE, 'NombreRazon');
+            $this->assertEquals(1, $nombreRazon->length);
+            $this->assertEquals('', $nombreRazon->item(0)->textContent);
+        } catch (\Exception $e) {
+            $this->fail('XML validation failed for counterparty without name: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Test that the InvoiceSerializer can wrap an XML document with the proper structure.
      */
     public function testWrapXmlWithRegFactuStructure(): void
@@ -484,6 +508,9 @@ class InvoiceSerializerTest extends TestCase
         $query->seriesNumber = 'TEST001';
         $query->issueDate = '2023-01-01';
         $query->externalRef = 'TEST-REF-001';
+
+        // Set issuerparty
+        $query->setIssuerparty('B12345678', 'Test Issuer S.L.');
 
         // Set counterparty
         $query->setCounterparty('87654321X', 'Test Counterparty');
