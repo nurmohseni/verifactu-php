@@ -12,6 +12,7 @@ use eseperio\verifactu\models\enums\OperationQualificationType;
 use eseperio\verifactu\models\enums\YesNoType;
 use eseperio\verifactu\models\InvoiceId;
 use eseperio\verifactu\models\InvoiceSubmission;
+use eseperio\verifactu\models\InvoiceCancellation;
 use eseperio\verifactu\models\LegalPerson;
 use eseperio\verifactu\services\HashGeneratorService;
 use PHPUnit\Framework\TestCase;
@@ -70,23 +71,82 @@ class HashGeneratorServiceTest extends TestCase
     /**
      * Test that the hash algorithm follows the official AEAT Verifactu specification.
      * 
-     * This test verifies that our implementation matches the expected algorithm.
+     * Verifies against the AEAT documentation example (§10):
+     * Input:  B12345678 / F-2025-001 / 10-06-2025 / F1 / 21.00 / 121.00 / (empty) / 2025-06-10T12:30:00+02:00
+     * String: "B12345678&F-2025-001&10-06-2025&F1&21.00&121.00&&2025-06-10T12:30:00+02:00"
      */
     public function testHashAlgorithmCompliance(): void
     {
-        // This test would require a known test case from AEAT documentation
-        // with input values and expected hash output.
-        // Since we don't have official test vectors, we can only verify our own implementation's consistency.
-        
-        $invoice = $this->createTestInvoice();
-        
-        // Generate the hash
+        // Build the exact data string from the AEAT documentation example
+        $expectedString = 'B12345678&F-2025-001&10-06-2025&F1&21.00&121.00&&2025-06-10T12:30:00+02:00';
+        $expectedHash = strtoupper(hash('sha256', $expectedString));
+
+        // Create invoice matching the example
+        $invoice = new InvoiceSubmission();
+        $invoiceId = new InvoiceId();
+        $invoiceId->issuerNif = 'B12345678';
+        $invoiceId->seriesNumber = 'F-2025-001';
+        $invoiceId->issueDate = '2025-06-10'; // YYYY-MM-DD, should be converted to dd-mm-yyyy
+        $invoice->setInvoiceId($invoiceId);
+        $invoice->invoiceType = InvoiceType::STANDARD; // 'F1'
+        $invoice->taxAmount = 21.00;
+        $invoice->totalAmount = 121.00;
+        $invoice->recordTimestamp = '2025-06-10T12:30:00+02:00';
+
+        $chaining = new Chaining();
+        $chaining->setAsFirstRecord();
+        $invoice->setChaining($chaining);
+
+        $computerSystem = new ComputerSystem();
+        $computerSystem->systemName = 'Sistema';
+        $computerSystem->version = '1.0';
+        $computerSystem->systemId = '01';
+        $computerSystem->installationNumber = '1';
+        $computerSystem->onlyVerifactu = YesNoType::YES;
+        $computerSystem->multipleObligations = YesNoType::NO;
+        $invoice->setSystemInfo($computerSystem);
+
+        $invoice->issuerName = 'Test';
+        $invoice->hashType = HashType::SHA_256;
+        $invoice->operationDescription = 'Test';
+        $invoice->simplifiedInvoice = YesNoType::NO;
+        $invoice->invoiceWithoutRecipient = YesNoType::NO;
+
         $hash = HashGeneratorService::generate($invoice);
-        
-        // Verify it's not empty and has the right format
-        $this->assertNotEmpty($hash, 'Hash should not be empty');
-        $this->assertEquals(64, strlen($hash), 'Hex-encoded SHA-256 hash should be 64 characters long');
-        $this->assertMatchesRegularExpression('/^[A-F0-9]{64}$/', $hash, 'Hash should be a valid uppercase hexadecimal string');
+
+        $this->assertEquals($expectedHash, $hash, 'Hash must match AEAT documentation example');
+        $this->assertEquals(64, strlen($hash));
+        $this->assertMatchesRegularExpression('/^[A-F0-9]{64}$/', $hash);
+    }
+
+    /**
+     * Test cancellation hash matches AEAT spec format.
+     */
+    public function testCancellationHashFormat(): void
+    {
+        $expectedString = 'B12345678&F-2025-001&10-06-2025&Anulacion&&2025-06-10T12:30:00+02:00';
+        $expectedHash = strtoupper(hash('sha256', $expectedString));
+
+        $cancellation = new InvoiceCancellation();
+        $invoiceId = new InvoiceId();
+        $invoiceId->issuerNif = 'B12345678';
+        $invoiceId->seriesNumber = 'F-2025-001';
+        $invoiceId->issueDate = '2025-06-10';
+        $cancellation->setInvoiceId($invoiceId);
+        $cancellation->recordTimestamp = '2025-06-10T12:30:00+02:00';
+
+        $chaining = new Chaining();
+        $chaining->setAsFirstRecord();
+        $cancellation->setChaining($chaining);
+
+        $cancellation->issuerName = 'Test';
+        $cancellation->hashType = HashType::SHA_256;
+        $cancellation->generatedBy = 'E';
+        $cancellation->previousRejection = YesNoType::NO;
+
+        $hash = HashGeneratorService::generate($cancellation);
+
+        $this->assertEquals($expectedHash, $hash, 'Cancellation hash must match AEAT spec format with literal "Anulacion"');
     }
     
     /**

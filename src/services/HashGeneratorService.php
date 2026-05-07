@@ -11,14 +11,16 @@ use eseperio\verifactu\models\InvoiceRecord;
 /**
  * Service responsible for generating the official SHA-256 hash ("huella") for invoice records,
  * following AEAT VERI*FACTU technical specification.
+ *
+ * The hash input string is raw values (no key=value) concatenated with '&', in the exact order
+ * defined by AEAT spec. See verifactu-documentacion-completa-v2.md §10.
  */
 class HashGeneratorService
 {
     /**
      * Generates the SHA-256 hash for a given invoice record, according to AEAT specs.
-     * The fields concatenation and formatting must strictly follow the regulation.
      *
-     * @return string Base64-encoded SHA-256 hash
+     * @return string Uppercase hexadecimal SHA-256 hash (64 characters)
      */
     public static function generate(InvoiceRecord $record): string
     {
@@ -37,55 +39,36 @@ class HashGeneratorService
     {
         // Detect type: submission or cancellation
         if ($record instanceof InvoiceSubmission) {
-            // Get invoice ID and chaining using getter methods
             $invoiceId = $record->getInvoiceId();
             $chaining = $record->getChaining();
-            // Fields order for "RegistroAlta" (submission)
-            $fields = [
-                'issuerNif'         => $invoiceId->issuerNif,
-                'seriesNumber'      => $invoiceId->seriesNumber,
-                'issueDate'         => $invoiceId->issueDate,
-                'invoiceType'       => $record->invoiceType instanceof \BackedEnum ? $record->invoiceType->value : (string) $record->invoiceType,
-                'taxAmount'         => $record->taxAmount,
-                'totalAmount'       => $record->totalAmount,
-                'hash'              => $chaining && $chaining->getPreviousInvoice() ? $chaining->getPreviousInvoice()->hash : '',
-                'recordTimestamp'   => $record->recordTimestamp,
-            ];
-            // Normalize values (trim, decimals, etc.)
-            $fields['taxAmount'] = self::normalizeDecimal($fields['taxAmount']);
-            $fields['totalAmount'] = self::normalizeDecimal($fields['totalAmount']);
-            // Prepare concatenation
+            // Raw values in AEAT-defined order:
+            // IDEmisorFactura & NumSerieFactura & FechaExpedicionFactura(dd-mm-yyyy) & TipoFactura &
+            // CuotaTotal & ImporteTotal & Huella_anterior & FechaHoraHusoGenRegistro
             $parts = [
-                'IDEmisorFactura=' . trim($fields['issuerNif']),
-                'NumSerieFactura=' . trim($fields['seriesNumber']),
-                'FechaExpedicionFactura=' . trim($fields['issueDate']),
-                'TipoFactura=' . trim($fields['invoiceType']),
-                'CuotaTotal=' . $fields['taxAmount'],
-                'ImporteTotal=' . $fields['totalAmount'],
-                'Huella=' . trim($fields['hash']),
-                'FechaHoraHusoGenRegistro=' . trim($fields['recordTimestamp']),
+                trim($invoiceId->issuerNif),
+                trim($invoiceId->seriesNumber),
+                InvoiceSerializer::formatDate((string) $invoiceId->issueDate),
+                $record->invoiceType instanceof \BackedEnum ? $record->invoiceType->value : (string) $record->invoiceType,
+                self::normalizeDecimal($record->taxAmount),
+                self::normalizeDecimal($record->totalAmount),
+                trim($chaining && $chaining->getPreviousInvoice() ? $chaining->getPreviousInvoice()->hash : ''),
+                trim($record->recordTimestamp),
             ];
             return implode('&', $parts);
         }
-        // Detect type: submission or cancellation
         if ($record instanceof InvoiceCancellation) {
-            // Get invoice ID and chaining using getter methods
             $invoiceId = $record->getInvoiceId();
             $chaining = $record->getChaining();
-            // Fields order for "RegistroAnulacion" (cancellation)
-            $fields = [
-                'issuerNif'         => $invoiceId->issuerNif,
-                'seriesNumber'      => $invoiceId->seriesNumber,
-                'issueDate'         => $invoiceId->issueDate,
-                'hash'              => $chaining && $chaining->getPreviousInvoice() ? $chaining->getPreviousInvoice()->hash : '',
-                'recordTimestamp'   => $record->recordTimestamp,
-            ];
+            // Raw values in AEAT-defined order:
+            // IDEmisorFactura & NumSerieFactura & FechaExpedicionFactura(dd-mm-yyyy) &
+            // "Anulacion" & Huella_anterior & FechaHoraHusoGenRegistro
             $parts = [
-                'IDEmisorFacturaAnulada=' . trim($fields['issuerNif']),
-                'NumSerieFacturaAnulada=' . trim($fields['seriesNumber']),
-                'FechaExpedicionFacturaAnulada=' . trim($fields['issueDate']),
-                'Huella=' . trim($fields['hash']),
-                'FechaHoraHusoGenRegistro=' . trim($fields['recordTimestamp']),
+                trim($invoiceId->issuerNif),
+                trim($invoiceId->seriesNumber),
+                InvoiceSerializer::formatDate((string) $invoiceId->issueDate),
+                'Anulacion',
+                trim($chaining && $chaining->getPreviousInvoice() ? $chaining->getPreviousInvoice()->hash : ''),
+                trim($record->recordTimestamp),
             ];
             return implode('&', $parts);
         }
