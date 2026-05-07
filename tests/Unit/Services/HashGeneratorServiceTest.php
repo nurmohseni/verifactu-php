@@ -124,7 +124,7 @@ class HashGeneratorServiceTest extends TestCase
      */
     public function testCancellationHashFormat(): void
     {
-        $expectedString = 'IDEmisorFactura=B12345678&NumSerieFactura=F-2025-001&FechaExpedicionFactura=10-06-2025&Anulacion&Huella=&FechaHoraHusoGenRegistro=2025-06-10T12:30:00+02:00';
+        $expectedString = 'IDEmisorFacturaAnulada=B12345678&NumSerieFacturaAnulada=F-2025-001&FechaExpedicionFacturaAnulada=10-06-2025&Huella=&FechaHoraHusoGenRegistro=2025-06-10T12:30:00+02:00';
         $expectedHash = strtoupper(hash('sha256', $expectedString));
 
         $cancellation = new InvoiceCancellation();

@@ -56,11 +56,12 @@ class HashGeneratorService
             $invoiceId = $record->getInvoiceId();
             $chaining = $record->getChaining();
 
+            // AEAT cancellation hash uses "Anulada" suffix on field names.
+            // Confirmed by error 2000 diagnostic. No "Anulacion" literal is included.
             $parts = [
-                'IDEmisorFactura=' . trim($invoiceId->issuerNif),
-                'NumSerieFactura=' . trim($invoiceId->seriesNumber),
-                'FechaExpedicionFactura=' . InvoiceSerializer::formatDate((string) $invoiceId->issueDate),
-                'Anulacion',
+                'IDEmisorFacturaAnulada=' . trim($invoiceId->issuerNif),
+                'NumSerieFacturaAnulada=' . trim($invoiceId->seriesNumber),
+                'FechaExpedicionFacturaAnulada=' . InvoiceSerializer::formatDate((string) $invoiceId->issueDate),
                 'Huella=' . trim($chaining && $chaining->getPreviousInvoice() ? $chaining->getPreviousInvoice()->hash : ''),
                 'FechaHoraHusoGenRegistro=' . trim($record->recordTimestamp),
             ];
