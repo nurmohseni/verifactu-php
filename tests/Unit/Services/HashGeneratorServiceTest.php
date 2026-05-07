@@ -73,12 +73,12 @@ class HashGeneratorServiceTest extends TestCase
      * 
      * Verifies against the AEAT documentation example (§10):
      * Input:  B12345678 / F-2025-001 / 10-06-2025 / F1 / 21.00 / 121.00 / (empty) / 2025-06-10T12:30:00+02:00
-     * String: "B12345678&F-2025-001&10-06-2025&F1&21.00&121.00&&2025-06-10T12:30:00+02:00"
+     * String: "IDEmisorFactura=B12345678&NumSerieFactura=F-2025-001&FechaExpedicionFactura=10-06-2025&TipoFactura=F1&CuotaTotal=21.00&ImporteTotal=121.00&Huella=&FechaHoraHusoGenRegistro=2025-06-10T12:30:00+02:00"
      */
     public function testHashAlgorithmCompliance(): void
     {
-        // Build the exact data string from the AEAT documentation example
-        $expectedString = 'B12345678&F-2025-001&10-06-2025&F1&21.00&121.00&&2025-06-10T12:30:00+02:00';
+        // AEAT production uses key=value format (confirmed by error 2000 diagnostic)
+        $expectedString = 'IDEmisorFactura=B12345678&NumSerieFactura=F-2025-001&FechaExpedicionFactura=10-06-2025&TipoFactura=F1&CuotaTotal=21.00&ImporteTotal=121.00&Huella=&FechaHoraHusoGenRegistro=2025-06-10T12:30:00+02:00';
         $expectedHash = strtoupper(hash('sha256', $expectedString));
 
         // Create invoice matching the example
@@ -124,7 +124,7 @@ class HashGeneratorServiceTest extends TestCase
      */
     public function testCancellationHashFormat(): void
     {
-        $expectedString = 'B12345678&F-2025-001&10-06-2025&Anulacion&&2025-06-10T12:30:00+02:00';
+        $expectedString = 'IDEmisorFactura=B12345678&NumSerieFactura=F-2025-001&FechaExpedicionFactura=10-06-2025&Anulacion&Huella=&FechaHoraHusoGenRegistro=2025-06-10T12:30:00+02:00';
         $expectedHash = strtoupper(hash('sha256', $expectedString));
 
         $cancellation = new InvoiceCancellation();
