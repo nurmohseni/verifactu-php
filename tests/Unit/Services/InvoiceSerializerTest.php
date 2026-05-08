@@ -515,4 +515,66 @@ class InvoiceSerializerTest extends TestCase
 
         return $query;
     }
+
+    /**
+     * Test that the batch wrapper produces one envelope with multiple RegistroFactura nodes.
+     */
+    public function testWrapBatchXmlWithRegFactuStructure(): void
+    {
+        $dom1 = InvoiceSerializer::toInvoiceXml($this->createBasicInvoiceSubmission(), false);
+        $dom2 = InvoiceSerializer::toInvoiceXml($this->createBasicInvoiceSubmission(), false);
+
+        $wrapped = InvoiceSerializer::wrapBatchXmlWithRegFactuStructure([$dom1, $dom2], '12345678Z', 'Test Batch');
+
+        $this->assertInstanceOf(\DOMDocument::class, $wrapped);
+        $this->assertEquals('sfLR:RegFactuSistemaFacturacion', $wrapped->documentElement->nodeName);
+
+        $cabeceras = $wrapped->getElementsByTagNameNS(InvoiceSerializer::SFLR_NAMESPACE, 'Cabecera');
+        $this->assertEquals(1, $cabeceras->length, 'There must be exactly one Cabecera');
+
+        $registros = $wrapped->getElementsByTagNameNS(InvoiceSerializer::SFLR_NAMESPACE, 'RegistroFactura');
+        $this->assertEquals(2, $registros->length, 'There must be exactly two RegistroFactura nodes');
+
+        $nifs = $wrapped->getElementsByTagNameNS(InvoiceSerializer::SF_NAMESPACE, 'NIF');
+        $this->assertGreaterThanOrEqual(1, $nifs->length);
+        $this->assertEquals('12345678Z', $nifs->item(0)->textContent);
+
+        $nombres = $wrapped->getElementsByTagNameNS(InvoiceSerializer::SF_NAMESPACE, 'NombreRazon');
+        $this->assertGreaterThanOrEqual(1, $nombres->length);
+        $this->assertEquals('Test Batch', $nombres->item(0)->textContent);
+    }
+
+    /**
+     * Test that batch wrapper XML passes XSD validation against SuministroLR.xsd.
+     */
+    public function testWrapBatchXmlWithRegFactuStructureXsdValidation(): void
+    {
+        $dom1 = InvoiceSerializer::toInvoiceXml($this->createBasicInvoiceSubmission(), false);
+        $dom2 = InvoiceSerializer::toInvoiceXml($this->createBasicInvoiceSubmission(), false);
+
+        $wrapped = InvoiceSerializer::wrapBatchXmlWithRegFactuStructure([$dom1, $dom2], '12345678Z', 'Test Batch');
+
+        try {
+            InvoiceSerializer::validateXml($wrapped, __DIR__ . '/../../../src/schemes/SuministroLR.xsd');
+            $this->assertTrue(true);
+        } catch (\Exception $e) {
+            $this->fail('Batch XML validation failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Test that the batch wrapper includes FechaFinVeriFactu when provided.
+     */
+    public function testWrapBatchXmlWithRegFactuStructureFechaFinVeriFactu(): void
+    {
+        $dom = InvoiceSerializer::toInvoiceXml($this->createBasicInvoiceSubmission(), false);
+        $wrapped = InvoiceSerializer::wrapBatchXmlWithRegFactuStructure([$dom], '12345678Z', 'Test Batch', '31-12-2025');
+
+        $remision = $wrapped->getElementsByTagNameNS(InvoiceSerializer::SF_NAMESPACE, 'RemisionVoluntaria');
+        $this->assertEquals(1, $remision->length);
+
+        $fechaFin = $wrapped->getElementsByTagNameNS(InvoiceSerializer::SF_NAMESPACE, 'FechaFinVeriFactu');
+        $this->assertEquals(1, $fechaFin->length);
+        $this->assertEquals('31-12-2025', $fechaFin->item(0)->textContent);
+    }
 }

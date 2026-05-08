@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace eseperio\verifactu;
 
+use eseperio\verifactu\models\BatchInvoiceResponse;
 use eseperio\verifactu\models\InvoiceCancellation;
 use eseperio\verifactu\models\InvoiceQuery;
 use eseperio\verifactu\models\InvoiceRecord;
@@ -96,6 +97,34 @@ class Verifactu
     public static function cancelInvoice(InvoiceCancellation $cancellation): InvoiceResponse
     {
         return VerifactuService::cancelInvoice($cancellation);
+    }
+
+    /**
+     * Registers multiple invoices in a batch with AEAT via VERI*FACTU.
+     *
+     * @param InvoiceSubmission[] $invoices
+     * @param int|null $maxBatchSize Maximum records per batch (defaults to 1000)
+     * @return BatchInvoiceResponse
+     * @throws \InvalidArgumentException
+     * @throws \SoapFault
+     */
+    public static function registerInvoices(array $invoices, ?int $maxBatchSize = null): BatchInvoiceResponse
+    {
+        return VerifactuService::registerInvoices($invoices, $maxBatchSize);
+    }
+
+    /**
+     * Cancels multiple invoices in a batch with AEAT via VERI*FACTU.
+     *
+     * @param InvoiceCancellation[] $cancellations
+     * @param int|null $maxBatchSize Maximum records per batch (defaults to 1000)
+     * @return BatchInvoiceResponse
+     * @throws \InvalidArgumentException
+     * @throws \SoapFault
+     */
+    public static function cancelInvoices(array $cancellations, ?int $maxBatchSize = null): BatchInvoiceResponse
+    {
+        return VerifactuService::cancelInvoices($cancellations, $maxBatchSize);
     }
 
     /**

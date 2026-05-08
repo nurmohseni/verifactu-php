@@ -592,6 +592,51 @@ class InvoiceSerializer
         return $newDoc;
     }
 
+    /**
+     * Wraps multiple signed XML DOMs into a single batch envelope (RegFactuSistemaFacturacion)
+     * with one Cabecera and multiple RegistroFactura children.
+     *
+     * @param \DOMDocument[] $signedDoms Signed DOM documents to include in the batch
+     * @param string $nif Issuer NIF
+     * @param string $name Issuer name
+     * @param string|null $fechaFinVeriFactu Optional end date for voluntary submission
+     * @return \DOMDocument The wrapped batch XML document
+     */
+    public static function wrapBatchXmlWithRegFactuStructure(array $signedDoms, string $nif, string $name, ?string $fechaFinVeriFactu = null): \DOMDocument
+    {
+        $newDoc = new \DOMDocument('1.0', 'UTF-8');
+        $newDoc->formatOutput = true;
+
+        $root = $newDoc->createElementNS(self::SFLR_NAMESPACE, 'sfLR:RegFactuSistemaFacturacion');
+        $root->setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:sf', self::SF_NAMESPACE);
+        $root->setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:ds', self::DS_NAMESPACE);
+        $newDoc->appendChild($root);
+
+        $cabecera = $newDoc->createElementNS(self::SFLR_NAMESPACE, 'sfLR:Cabecera');
+        $root->appendChild($cabecera);
+
+        $obligadoEmision = $newDoc->createElementNS(self::SF_NAMESPACE, 'sf:ObligadoEmision');
+        $cabecera->appendChild($obligadoEmision);
+        $obligadoEmision->appendChild($newDoc->createElementNS(self::SF_NAMESPACE, 'sf:NombreRazon', (string) $name));
+        $obligadoEmision->appendChild($newDoc->createElementNS(self::SF_NAMESPACE, 'sf:NIF', (string) $nif));
+
+        if (!empty($fechaFinVeriFactu)) {
+            $remisionVoluntaria = $newDoc->createElementNS(self::SF_NAMESPACE, 'sf:RemisionVoluntaria');
+            $remisionVoluntaria->appendChild($newDoc->createElementNS(self::SF_NAMESPACE, 'sf:FechaFinVeriFactu', (string) $fechaFinVeriFactu));
+            $cabecera->appendChild($remisionVoluntaria);
+        }
+
+        foreach ($signedDoms as $signedDom) {
+            $registroFactura = $newDoc->createElementNS(self::SFLR_NAMESPACE, 'sfLR:RegistroFactura');
+            $root->appendChild($registroFactura);
+
+            $imported = $newDoc->importNode($signedDom->documentElement, true);
+            $registroFactura->appendChild($imported);
+        }
+
+        return $newDoc;
+    }
+
     private static function buildSistemaInformatico(\DOMDocument $doc, ?ComputerSystem $system, ?string $issuerNifForDefault): \DOMElement
     {
         $sistemaInformatico = $doc->createElementNS(self::SF_NAMESPACE, 'sf:SistemaInformatico');

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace eseperio\verifactu\services;
 
+use eseperio\verifactu\models\BatchInvoiceResponse;
 use eseperio\verifactu\models\InvoiceCancellation;
 use eseperio\verifactu\models\InvoiceQuery;
 use eseperio\verifactu\models\InvoiceRecord;
@@ -282,6 +283,194 @@ TXT
         $baseUrl = self::getConfig(self::QR_VERIFICATION_URL);
 
         return QrGeneratorService::generateQr($record, $baseUrl, $destination, $size, $engine);
+    }
+
+    /**
+     * Maximum number of records allowed in a single batch request.
+     */
+    public const MAX_BATCH_SIZE = 1000;
+
+    /**
+     * Registers multiple invoices in a single or chunked batch request.
+     *
+     * @param InvoiceSubmission[] $invoices
+     * @param int|null $maxBatchSize Maximum records per batch (defaults to MAX_BATCH_SIZE)
+     * @return BatchInvoiceResponse
+     * @throws \InvalidArgumentException
+     * @throws \SoapFault
+     */
+    public static function registerInvoices(array $invoices, ?int $maxBatchSize = null): BatchInvoiceResponse
+    {
+        $nif = self::validateBatch($invoices, InvoiceSubmission::class);
+
+        $batchSize = $maxBatchSize ?? self::MAX_BATCH_SIZE;
+        $batches = array_chunk($invoices, $batchSize);
+
+        $batchResponse = new BatchInvoiceResponse();
+
+        foreach ($batches as $batch) {
+            $signedDoms = [];
+            $name = null;
+            $fechaFinVeriFactu = null;
+
+            foreach ($batch as $invoice) {
+                $validation = $invoice->validate();
+                if (!empty($validation)) {
+                    throw new \InvalidArgumentException('InvoiceSubmission validation failed: ' . print_r($validation, true));
+                }
+
+                $invoice->hash = HashGeneratorService::generate($invoice);
+
+                $finalValidation = $invoice->validate();
+                if (!empty($finalValidation)) {
+                    throw new \InvalidArgumentException('InvoiceSubmission final validation failed: ' . print_r($finalValidation, true));
+                }
+
+                $invoiceDom = InvoiceSerializer::toInvoiceXml($invoice);
+                $signedInvoiceXml = XmlSignerService::signXml(
+                    $invoiceDom->saveXML(),
+                    self::getConfig(self::CERT_PATH_KEY),
+                    self::getConfig(self::CERT_PASSWORD_KEY)
+                );
+
+                $signedDom = new \DOMDocument();
+                $signedDom->loadXML($signedInvoiceXml);
+                $signedDoms[] = $signedDom;
+
+                if ($name === null) {
+                    $name = $invoice->issuerName;
+                    $fechaFinVeriFactu = $invoice->fechaFinVeriFactu ?? null;
+                }
+            }
+
+            $wrappedDom = InvoiceSerializer::wrapBatchXmlWithRegFactuStructure($signedDoms, $nif, $name, $fechaFinVeriFactu);
+            $response = self::sendBatchSoap($wrappedDom);
+            $batchResponse->addResponse($response, count($batch));
+        }
+
+        return $batchResponse;
+    }
+
+    /**
+     * Sends a wrapped batch DOM via SOAP and returns the parsed InvoiceResponse.
+     */
+    private static function sendBatchSoap(\DOMDocument $wrappedDom): InvoiceResponse
+    {
+        $dom_xpath = new \DOMXPath($wrappedDom);
+        $root = $dom_xpath->query('/')->item(0)->firstChild;
+        $xml = $wrappedDom->saveXML($root);
+
+        $client = self::getClient();
+        try {
+            $soapVar = new \SoapVar($xml, XSD_ANYXML);
+            $client->__soapCall('RegFactuSistemaFacturacion', [$soapVar]);
+        } catch (\SoapFault $e) {
+            error_log('SOAP Fault: ' . $e->getMessage());
+            error_log('Xml enviado: ' . PHP_EOL . $xml);
+            error_log('Última petición SOAP: ' . $client->__getLastRequest());
+            error_log('Última respuesta SOAP: ' . $client->__getLastResponse());
+            throw new \RuntimeException('Error calling AEAT service: ' . $e->getMessage());
+        }
+
+        $rawResponseXml = $client->__getLastResponse();
+        return ResponseParserService::parseInvoiceResponse($rawResponseXml);
+    }
+
+    /**
+     * Cancels multiple invoices in a single or chunked batch request.
+     *
+     * @param InvoiceCancellation[] $cancellations
+     * @param int|null $maxBatchSize Maximum records per batch (defaults to MAX_BATCH_SIZE)
+     * @return BatchInvoiceResponse
+     * @throws \InvalidArgumentException
+     * @throws \SoapFault
+     */
+    public static function cancelInvoices(array $cancellations, ?int $maxBatchSize = null): BatchInvoiceResponse
+    {
+        $nif = self::validateBatch($cancellations, InvoiceCancellation::class);
+
+        $batchSize = $maxBatchSize ?? self::MAX_BATCH_SIZE;
+        $batches = array_chunk($cancellations, $batchSize);
+
+        $batchResponse = new BatchInvoiceResponse();
+
+        foreach ($batches as $batch) {
+            $signedDoms = [];
+            $name = null;
+            $fechaFinVeriFactu = null;
+
+            foreach ($batch as $cancellation) {
+                $validation = $cancellation->validate();
+                if (!empty($validation)) {
+                    throw new \InvalidArgumentException('InvoiceCancellation validation failed: ' . print_r($validation, true));
+                }
+
+                $cancellation->hash = HashGeneratorService::generate($cancellation);
+
+                $finalValidation = $cancellation->validate();
+                if (!empty($finalValidation)) {
+                    throw new \InvalidArgumentException('InvoiceCancellation final validation failed: ' . print_r($finalValidation, true));
+                }
+
+                $cancellationDom = InvoiceSerializer::toCancellationXml($cancellation);
+                $signedCancellationXml = XmlSignerService::signXml(
+                    $cancellationDom->saveXML(),
+                    self::getConfig(self::CERT_PATH_KEY),
+                    self::getConfig(self::CERT_PASSWORD_KEY)
+                );
+
+                $signedDom = new \DOMDocument();
+                $signedDom->loadXML($signedCancellationXml);
+                $signedDoms[] = $signedDom;
+
+                if ($name === null) {
+                    $name = $cancellation->issuerName;
+                    $fechaFinVeriFactu = $cancellation->fechaFinVeriFactu ?? null;
+                }
+            }
+
+            $wrappedDom = InvoiceSerializer::wrapBatchXmlWithRegFactuStructure($signedDoms, $nif, $name, $fechaFinVeriFactu);
+            $response = self::sendBatchSoap($wrappedDom);
+            $batchResponse->addResponse($response, count($batch));
+        }
+
+        return $batchResponse;
+    }
+
+    /**
+     * Shared pre-flight validation for batch operations.
+     *
+     * @param array $items
+     * @param string $expectedClass
+     * @return string The common issuer NIF
+     * @throws \InvalidArgumentException
+     */
+    private static function validateBatch(array $items, string $expectedClass): string
+    {
+        if (empty($items)) {
+            throw new \InvalidArgumentException('Batch input cannot be empty.');
+        }
+
+        $nif = null;
+        foreach ($items as $item) {
+            if (!$item instanceof $expectedClass) {
+                throw new \InvalidArgumentException('All batch items must be instances of ' . $expectedClass);
+            }
+
+            $invoiceId = $item->getInvoiceId();
+            if ($invoiceId === null) {
+                throw new \InvalidArgumentException('All batch items must have an invoice ID.');
+            }
+
+            $currentNif = $invoiceId->issuerNif;
+            if ($nif === null) {
+                $nif = $currentNif;
+            } elseif ($currentNif !== $nif) {
+                throw new \InvalidArgumentException('All batch items must share the same issuer NIF.');
+            }
+        }
+
+        return $nif;
     }
 
     // The XML helper methods (wrapXmlWithRegFactuStructure, buildInvoiceXml, buildCancellationXml, buildQueryXml)
