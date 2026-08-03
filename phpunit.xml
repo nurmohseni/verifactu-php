@@ -20,6 +20,7 @@
         </testsuite>
         <testsuite name="Integration">
             <file>./tests/Verifactu/VerifactuSandboxTest.php</file>
+            <file>./tests/Verifactu/CensusValidationSandboxTest.php</file>
         </testsuite>
     </testsuites>
     <source>

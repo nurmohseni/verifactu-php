@@ -51,6 +51,7 @@ invoicing system, including:
 * Querying previously submitted invoices
 * Event notification (system-level events required by law)
 * QR code generation (for inclusion on invoices)
+* Taxpayer census validation (VNifV2 — verify a NIF/name against the AEAT census)
 * Built-in XML signature (XAdES enveloped) and hash calculation
 * Error translation using the official AEAT code dictionary
 
@@ -66,6 +67,7 @@ It is designed for easy Composer-based installation and seamless integration int
 * Certificate management for SOAP and XML signature
 * Compatible with both production and testing AEAT endpoints
 * Lightweight QR code generation (no unnecessary dependencies)
+* Taxpayer census validation (VNifV2) over mutual TLS, reusing the configured certificate
 * Developer-friendly validation and error reporting
 
 ---
@@ -512,6 +514,65 @@ if ($response->submissionStatus === \eseperio\verifactu\models\InvoiceResponse::
 
 - **Resolution**: Size in pixels (default: 300)
 
+
+### 6. **Validate Taxpayer Census (VNifV2)**
+
+The AEAT VNifV2 web service (WS Masivo de Calidad de Datos Identificativos)
+verifies whether a NIF and a name/company name match the AEAT census. Unlike
+the invoice flow, VNifV2 uses plain SOAP over mutual TLS — no XAdES
+signature — so it reuses the same certificate configured via
+`Verifactu::config()` and nothing else.
+
+```php
+use eseperio\verifactu\Verifactu;
+use eseperio\verifactu\models\CensusValidationResult;
+
+// After calling Verifactu::config(...)
+
+// Validate a single taxpayer.
+$result = Verifactu::validateCensus('12345678Z', 'Juan Perez');
+
+if ($result->isValid()) {
+    // The NIF and name fully match the AEAT census.
+    echo "Identified: {$result->nif} — {$result->nombre}\n";
+} elseif ($result->isIdentified()) {
+    // Exists in the census but with caveats (Baja / Revocado).
+    echo "Identified with caveats: {$result->resultado}\n";
+} else {
+    echo "Not identified: {$result->resultado}\n";
+}
+```
+
+Batch validation of up to 20.000 taxpayers in a single request:
+
+```php
+$results = Verifactu::validateCensusBatch([
+    ['nif' => '12345678Z', 'nombre' => 'Juan Perez'],
+    ['nif' => 'A12345678'],                 // legal entity: name optional
+    ['nif' => 'B12345678', 'nombre' => 'ACME SL'],
+]);
+
+foreach ($results as $result) {
+    /** @var CensusValidationResult $result */
+    echo "{$result->nif}: {$result->resultado}\n";
+}
+```
+
+Possible `resultado` values (`CensusValidationResult` constants):
+
+| Constant | `resultado` | Meaning |
+|---|---|---|
+| `RESULT_IDENTIFICADO` | `IDENTIFICADO` | NIF and name match the census |
+| `RESULT_NO_IDENTIFICADO_SIMILAR` | `NO IDENTIFICADO-SIMILAR` | Individuals: minor name/surname differences |
+| `RESULT_NO_IDENTIFICADO` | `NO IDENTIFICADO` | Does not match the data provided |
+| `RESULT_IDENTIFICADO_BAJA` | `IDENTIFICADO-BAJA` | Entities: identified but deregistered |
+| `RESULT_IDENTIFICADO_REVOCADO` | `IDENTIFICADO-REVOCADO` | Entities: identified but NIF revoked |
+| `RESULT_NO_PROCESADO` | `NO PROCESADO` | Not processed (e.g. batch limit exceeded) |
+
+`isValid()` is `true` only for `IDENTIFICADO`; `isIdentified()` is `true` for
+any `IDENTIFICADO*` outcome (including Baja/Revocado). SOAP faults are thrown
+as `CensusValidationException`, which exposes the AEAT error code parsed from
+
 ---
 
 ## AEAT Workflow Overview
@@ -592,6 +653,8 @@ Verifactu system. All models extend the base `Model` class, which provides valid
 * **InvoiceResponse:** The result of a registration or cancellation
 * **QueryResponse:** The result of a query/filter
 * **EventRecord:** For system events as required by AEAT
+* **CensusValidationRequest:** For validating a NIF/name against the AEAT census (VNifV2), single or batch (up to 20.000)
+* **CensusValidationResult:** The outcome of a single taxpayer census validation, with `isValid()`/`isIdentified()` helpers
 
 ### Component Models
 
@@ -725,6 +788,15 @@ more advanced use cases.
 
   // Load a certificate and check its validity
   $certInfo = CertificateManagerService::loadCertificate($certPath, $certPassword);
+  ```
+
+* **CensusValidationService:** Validates taxpayers against the AEAT census via the VNifV2 web service (plain SOAP over mutual TLS, no XAdES signature). Reuses `SoapClientFactoryService` and `CertificateManagerService`.
+  ```php
+  use eseperio\verifactu\services\CensusValidationService;
+  use eseperio\verifactu\models\CensusValidationRequest;
+
+  $request = new CensusValidationRequest('12345678Z', 'Juan Perez');
+  $results = CensusValidationService::validate($request);
   ```
 
 Each service is designed to be used independently or as part of the overall workflow orchestrated by the

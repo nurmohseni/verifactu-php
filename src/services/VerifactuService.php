@@ -28,6 +28,8 @@ class VerifactuService
     public const CERT_PASSWORD_KEY = 'certPassword';
     /** QR verification URL parameter name. */
     public const QR_VERIFICATION_URL = 'qrValidationUrl';
+    /** VNifV2 (census validation) endpoint URL parameter name. */
+    public const VNIF_ENDPOINT = 'vnifEndpoint';
 
     /** Global configuration for Verifactu service. @var array */
     protected static $config = [];
@@ -54,6 +56,18 @@ class VerifactuService
         }
 
         return self::$config[$param];
+    }
+
+    /**
+     * Returns the full configuration array. Exposed so the Verifactu facade
+     * can override individual keys (e.g. the VNifV2 endpoint) while keeping
+     * the rest of the configuration intact.
+     *
+     * @return array
+     */
+    public static function getConfigAll(): array
+    {
+        return self::$config;
     }
 
     /** Returns the SOAP client, creating it if necessary. @return \SoapClient */

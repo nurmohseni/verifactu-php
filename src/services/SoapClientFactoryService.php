@@ -19,7 +19,7 @@ class SoapClientFactoryService
      * @param array $options Additional SoapClient options (optional)
      * @throws \RuntimeException
      */
-    public static function createSoapClient(string $wsdl, string $certPath, string $certPassword = '', array $options = []): \SoapClient
+    public static function createSoapClient(?string $wsdl, string $certPath, string $certPassword = '', array $options = []): \SoapClient
     {
         if (!file_exists($certPath)) {
             throw new \RuntimeException("Certificate file not found: $certPath");
@@ -37,9 +37,15 @@ class SoapClientFactoryService
         $soapOptions = array_merge($defaultOptions, $options);
 
         try {
+            // Non-WSDL mode (null): SoapClient is instantiated with null so
+            // the request/response is driven entirely by location/uri options.
+            if ($wsdl === null) {
+                return new \SoapClient(null, $soapOptions);
+            }
+
             // If WSDL is a local file path, prefix with file:// to help libxml resolve relative imports
             $wsdlPath = $wsdl;
-            if (is_string($wsdl) && file_exists($wsdl) && !str_starts_with($wsdl, 'file://')) {
+            if (file_exists($wsdl) && !str_starts_with($wsdl, 'file://')) {
                 $real = realpath($wsdl);
                 if ($real !== false) {
                     $wsdlPath = 'file://' . $real;

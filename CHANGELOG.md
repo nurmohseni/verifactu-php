@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### VNifV2 census validation (WS Masivo de Calidad de Datos Identificativos)
+
+- **New `Verifactu::validateCensus()`** and **`Verifactu::validateCensusBatch()`** facade
+  methods for the AEAT VNifV2 web service, which verifies whether a NIF and
+  name/company name match the AEAT census. Unlike the invoice flow, VNifV2 uses
+  plain SOAP over mutual TLS (no XAdES signature), reusing the same certificate
+  configured via `Verifactu::config()`.
+- New `CensusValidationRequest` model supporting a single taxpayer or a batch
+  of up to 20.000 `Contribuyente` blocks per request.
+- New `CensusValidationResult` model with the six documented AEAT outcomes
+  (`Identificado`, `No identificado-similar`, `No identificado`,
+  `Identificado-Baja`, `Identificado-Revocado`, `No procesado`) and
+  `isValid()` / `isIdentified()` / `isNotProcessed()` helpers.
+- New `CensusValidationService` (reuses `SoapClientFactoryService` and
+  `CertificateManagerService`) and `CensusValidationException` exposing the
+  AEAT error code parsed from the faultstring.
+- `Verifactu::config()` now also resolves and stores the VNifV2 endpoint
+  (selected by certificate type); `Verifactu::setVnifEndpoint()` allows
+  overriding it (e.g. for a future sandbox URL).
+
 ### AEAT 2026 compatibility (v1.2.1, 23/02/2026)
 
 - **[NL/PN] Netherlands country code**: The AEAT updated the internal denomination for

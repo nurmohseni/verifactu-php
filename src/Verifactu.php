@@ -12,6 +12,9 @@ use eseperio\verifactu\models\InvoiceRecord;
 use eseperio\verifactu\models\InvoiceResponse;
 use eseperio\verifactu\models\InvoiceSubmission;
 use eseperio\verifactu\models\QueryResponse;
+use eseperio\verifactu\models\CensusValidationRequest;
+use eseperio\verifactu\models\CensusValidationResult;
+use eseperio\verifactu\services\CensusValidationService;
 use eseperio\verifactu\services\VerifactuService;
 
 class Verifactu
@@ -48,6 +51,15 @@ class Verifactu
      * QR verification URL (testing/homologation).
      */
     public const QR_VERIFICATION_URL_TEST = 'https://prewww2.aeat.es/wlpl/TIKE-CONT/ValidarQR';
+    /**
+     * VNifV2 (census validation) production endpoint (persona física / representante).
+     */
+    public const URL_VNIF_PRODUCTION = 'https://www1.agenciatributaria.gob.es/wlpl/BURT-JDIT/ws/VNifV2SOAP';
+
+    /**
+     * VNifV2 (census validation) production endpoint (seal certificate).
+     */
+    public const URL_VNIF_PRODUCTION_SEAL = 'https://www10.agenciatributaria.gob.es/wlpl/BURT-JDIT/ws/VNifV2SOAP';
 
     public const TYPE_CERTIFICATE = 'certificate';
     public const TYPE_SEAL = 'seal';
@@ -72,12 +84,35 @@ class Verifactu
             default => throw new \InvalidArgumentException("Invalid environment: $environment")
         };
 
+        // VNifV2 (census validation) endpoint. AEAT only documents a
+        // production URL for this service (no sandbox), so both environments
+        // resolve to the production endpoint, selected by certificate type.
+        $vnifEndpoint = $certType === self::TYPE_SEAL ? self::URL_VNIF_PRODUCTION_SEAL : self::URL_VNIF_PRODUCTION;
+
         VerifactuService::config([
             VerifactuService::CERT_PATH_KEY => $certPath,
             VerifactuService::CERT_PASSWORD_KEY => $certPassword,
             VerifactuService::SOAP_ENDPOINT => $endpoint,
             VerifactuService::QR_VERIFICATION_URL => $qrValidationUrl,
+            VerifactuService::VNIF_ENDPOINT => $vnifEndpoint,
         ]);
+    }
+
+    /**
+     * Overrides the VNifV2 (census validation) endpoint.
+     *
+     * AEAT does not currently publish a sandbox URL for VNifV2; this setter
+     * keeps the endpoint configurable in case AEAT publishes one in the
+     * future. Must be called after Verifactu::config().
+     *
+     * @param string $url Full VNifV2 SOAP endpoint URL.
+     */
+    public static function setVnifEndpoint(string $url): void
+    {
+        VerifactuService::config(array_merge(
+            VerifactuService::getConfigAll(),
+            [VerifactuService::VNIF_ENDPOINT => $url]
+        ));
     }
 
     /**
@@ -143,5 +178,59 @@ class Verifactu
     public static function generateInvoiceQr(InvoiceRecord $record): string
     {
         return VerifactuService::generateInvoiceQr($record);
+    }
+
+    /**
+     * Validates a single taxpayer against the AEAT census using the VNifV2
+     * web service (Calidad de Datos Identificativos).
+     *
+     * Reuses the certificate configured via Verifactu::config(); no XAdES
+     * signature is involved, only mutual TLS.
+     *
+     * @param string      $nif    Tax ID to validate (9 alphanumeric characters).
+     * @param string|null $nombre Name or company name. Required for individuals,
+     *                             optional for legal entities.
+     * @return CensusValidationResult
+     * @throws \InvalidArgumentException When the input fails validation.
+     * @throws \eseperio\verifactu\exceptions\CensusValidationException When AEAT returns a SOAP Fault.
+     * @throws \SoapFault On low-level SOAP errors.
+     */
+    public static function validateCensus(string $nif, ?string $nombre = null): CensusValidationResult
+    {
+        $request = new CensusValidationRequest($nif, $nombre);
+
+        return CensusValidationService::validate($request)[0];
+    }
+
+    /**
+     * Validates multiple taxpayers in a single VNifV2 batch request (up to
+     * 20.000 Contribuyente per request).
+     *
+     * @param array<int, array{nif: string, nombre?: string|null}|CensusValidationRequest> $contribuyentes
+     *        Each entry is either a CensusValidationRequest or an array with
+     *        keys "nif" (required) and "nombre" (optional).
+     * @return CensusValidationResult[] One result per input taxpayer, in order.
+     * @throws \InvalidArgumentException When the input fails validation.
+     * @throws \eseperio\verifactu\exceptions\CensusValidationException When AEAT returns a SOAP Fault.
+     * @throws \SoapFault On low-level SOAP errors.
+     */
+    public static function validateCensusBatch(array $contribuyentes): array
+    {
+        $request = new CensusValidationRequest();
+        foreach ($contribuyentes as $entry) {
+            if ($entry instanceof CensusValidationRequest) {
+                foreach ($entry->getContribuyentes() as $c) {
+                    $request->addContribuyente($c['nif'], $c['nombre']);
+                }
+            } elseif (is_array($entry) && isset($entry['nif'])) {
+                $request->addContribuyente($entry['nif'], $entry['nombre'] ?? null);
+            } else {
+                throw new \InvalidArgumentException(
+                    'Each contribuyente must be a CensusValidationRequest or an array with a "nif" key.'
+                );
+            }
+        }
+
+        return CensusValidationService::validate($request);
     }
 }
