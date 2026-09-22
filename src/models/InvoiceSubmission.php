@@ -6,6 +6,7 @@ namespace eseperio\verifactu\models;
 
 use eseperio\verifactu\models\enums\InvoiceType;
 use eseperio\verifactu\models\enums\OperationQualificationType;
+use eseperio\verifactu\models\enums\PreviousRejectionType;
 use eseperio\verifactu\models\enums\RectificationType;
 use eseperio\verifactu\models\enums\ThirdPartyOrRecipientType;
 use eseperio\verifactu\models\enums\YesNoType;
@@ -101,6 +102,40 @@ class InvoiceSubmission extends InvoiceRecord
      * @var ThirdPartyOrRecipientType|null
      */
     public $issuedBy;
+
+    /**
+     * Subsanación flag (Subsanacion, optional).
+     *
+     * `YesNoType::YES` declares that this record corrects a previously
+     * submitted one — the IDFactura stays the same and the hash/chain are
+     * NOT recomputed. AEAT uses it to tell an amendment apart from a fresh
+     * registration; omitting it on a re-send exposes the submission to
+     * error 3000 ("Registro de facturación duplicado").
+     *
+     * @see SuministroInformacion.xsd — SubsanacionType
+     * @var YesNoType|null
+     */
+    public $subsanacion;
+
+    /**
+     * Previous rejection flag (RechazoPrevio, optional).
+     *
+     * Declares whether a previous submission of this same record was
+     * rejected, using {@see PreviousRejectionType}. The XSD ties it to
+     * `subsanacion` and, per AEAT's operation tables, the correct value
+     * depends on whether the record exists in AEAT:
+     *
+     *  - `X` — the record does NOT exist in AEAT. This is the ALTA POR
+     *    RECHAZO case (invoice was rejected, so it never entered AEAT);
+     *    requires `Subsanacion=S` (AEAT error 1153).
+     *  - `S` — the record IS in AEAT and its previous ANULACIÓN was
+     *    rejected. Requires `Subsanacion=S` (AEAT error 1161).
+     *  - `N` — no previous rejection.
+     *
+     * @see SuministroInformacion.xsd — RechazoPrevioType
+     * @var PreviousRejectionType|null
+     */
+    public $previousRejection;
 
     /**
      * Third party (Tercero, optional).
@@ -469,6 +504,28 @@ class InvoiceSubmission extends InvoiceRecord
                 }
 
                 return ($value instanceof ThirdPartyOrRecipientType) ? true : 'Must be an instance of ThirdPartyOrRecipientType.';
+            }],
+            ['subsanacion', function ($value): bool|string {
+                if ($value === null) {
+                    return true;
+                }
+
+                return ($value instanceof YesNoType) ? true : 'Must be an instance of YesNoType.';
+            }],
+            ['previousRejection', function ($value, $model): bool|string {
+                if ($value === null) {
+                    return true;
+                }
+                if (! ($value instanceof PreviousRejectionType)) {
+                    return 'Must be an instance of PreviousRejectionType.';
+                }
+                // AEAT 1153 / 1161: RechazoPrevio (any value) only travels
+                // together with Subsanacion=S.
+                if (($model->subsanacion ?? null) !== YesNoType::YES) {
+                    return 'RechazoPrevio requires Subsanacion=S (AEAT 1153/1161).';
+                }
+
+                return true;
             }],
             ['thirdParty', function ($value): bool|string {
                 if ($value === null) {

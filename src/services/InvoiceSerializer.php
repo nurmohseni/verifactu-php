@@ -73,6 +73,18 @@ class InvoiceSerializer
         // NombreRazonEmisor (required)
         $root->appendChild($doc->createElementNS(self::SF_NAMESPACE, 'sf:NombreRazonEmisor', (string) $invoice->issuerName));
 
+        // Subsanacion / RechazoPrevio (optional). The XSD places them right
+        // after NombreRazonEmisor and before TipoFactura, and the sequence is
+        // enforced — emitting them out of order fails schema validation.
+        // They declare that this record amends a previously submitted one,
+        // which is what keeps a re-send from landing as a duplicate (AEAT
+        // error 3000).
+        if ($invoice->subsanacion !== null) {
+            $root->appendChild($doc->createElementNS(self::SF_NAMESPACE, 'sf:Subsanacion', (string) $invoice->subsanacion->value));
+        }
+        if ($invoice->previousRejection !== null) {
+            $root->appendChild($doc->createElementNS(self::SF_NAMESPACE, 'sf:RechazoPrevio', (string) $invoice->previousRejection->value));
+        }
 
 
         // TipoFactura (required)
